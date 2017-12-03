@@ -2,19 +2,19 @@ Polkadot is primarily described by the Relay chain protocol; key logic between p
 
 # Relay chain
 
-The relay chain is a simplified proof-of-stake blockchain backed by a Web Assembly (Wasm) engine. Unlike Ethereum and Bitcoin, balances are not a first-class part of the state-transition function (STF). Indeed the only aspect of the relay-chain which is first-class is the notion of an *object*. Each object is identified through an index (`ObjectID`) and has some code and storage (similar to Ethereum contract accounts). The code exports functions which can be called either from other objects or through a transaction.
+The relay chain is a simplified proof-of-stake blockchain backed by a Web Assembly (Wasm) engine. Unlike Ethereum and Bitcoin, balances are not a first-class part of the STF. Indeed the only aspect of the relay-chain which is first-class is the notion of an *object*. Each object is identified through an index (`ObjectID`) and has some code and storage (similar to Ethereum contract accounts). The code exports functions which can be called either from other objects or through a transaction.
 
-Practically speaking, account balances do exist on the relay chain but are entirely an artefact of an object's storage and code. The entire state transition is managed through a single call into the Administration object. Aside from the consensus algorithm (which is "hard-coded" into the protocol for light-client practicality), all aspects of the protocol are soft-coded as the logic of these objects and can be upgraded without any kind of hard-fork.
+Practically speaking, account balances do exist on the relay chain but are entirely an artefact of an object's storage and code. The entire S-T is managed through a single call into the Administration object. Aside from the consensus algorithm (which is "hard-coded" into the protocol for light-client practicality), all aspects of the protocol are soft-coded as the logic of these objects and can be upgraded without any kind of hard-fork.
 
 ## Consensus
 
-Consensus is defined at the job of ensuring that the blockchain, and thus the collection of state-transitions from genesis to head, is agreed upon between all conformant clients and can progress consistently. It is managed in three parts:
+Consensus is defined as the job of ensuring that the blockchain, and thus the collection of S-Ts from genesis to head, is agreed upon between all conformant clients and can progress consistently. It is managed in three parts:
 
 - an instant-finality mechanism that provides forward-verifiable finality on a single relay-chain block (eventually likely based on Zyzzyva/Aardvark/Abab, but likely to be PBFT for early PoCs);
 - a progressive parachain candidate determination routine that provides a decentralised means of forming eventual consensus over a set of parachain candidates that fulfil certain criteria based on signed statements from validators;
 - a simple leader-based mechanism for relay-chain transaction collation.
 
-Of the three attributes of consensus, namely consistency, availability and partition-tolerance, we are generally prepared to give up large-scale partition-tolerance of the validator set (who we can highly motivate to ensure remain online and well-connected), and get according guarantees over the consistency and availability. As such an instant-finality consensus algorithm is well-suited, such as PBFT or an optimistic derivative like Zyzzyva.
+Of the three attributes of consensus, namely consistency, availability and partition-tolerance, we are generally prepared to give up large-scale partition-tolerance of the validator set (who we can highly motivate to ensure they remain online and well-connected), and get according guarantees over the consistency and availability. As such an instant-finality consensus algorithm is well-suited, such as PBFT or an optimistic derivative like Zyzzyva (speculative BFT).
 
 To minimise overt exposure to a single malfunctioning node, we use a decentralised and progressive mechanism for determining parachain candidates that delivers eventual consistency (and possibly early consistency for a sub-optimal-but-acceptable solution).
 
@@ -34,11 +34,11 @@ Ownership of DOTs is managed by two objects: the Staking object (which manages D
 state := ObjectID -> ( code_hash: Hash, storage_root: Hash )
 ```
 
-The objects each fulfil specific functions (though over time these may expanded or contracted as changes in the protocol determine). For PoC-1, the object are:
+The objects each fulfil specific functions (though over time these may be expanded or contracted as changes in the protocol determine). For PoC-1, the object are:
 
 - Object 0: Nobody. Basic user-level object. Can be queried for non-sensitive universal data (like `block_number()`, `block_hash()`). Represents the "user-level" authenticated external transaction origin.
 - Object 1: System. Provides low-level mutable interaction with header, in particular `set_digest()`. Represents the system origin, which includes all validator-accepted, unsigned transactions.
-- Object 2: Administration. Stores and administers low-level chain parameters. Can unilaterally read and replace code/storage in all objects, &c. Hosts and acts on stake-voting activities. Acts as entry point in block execution/state-transition.
+- Object 2: Administration. Stores and administers low-level chain parameters. Can unilaterally read and replace code/storage in all objects, &c. Hosts and acts on stake-voting activities. Acts as entry point in block execution/S-T.
 - Object 3: Consensus. Stores all things consensus and code is the relay-chain consensus logic. Requires to be informed of the current validator set and can be queried for behaviour profiles. Checks validator signatures.
 - Object 4: Staking. Stores all things to do with the proof-of-stake algorithm particularly currently staked amounts. Informs the Consensus object of its current validator set. Hosts stake-voting.
 - Object 5: Parachains. Stores all things to do with parachains including total parachain balances, relay-chain-native user balances that are transferable (per parachain), validation function, queue information and current state. Is flushed at the beginning of each block in order to allow the previous block's messages to the relay chain to execute.
@@ -98,7 +98,7 @@ Block: [
 
 ## Transaction
 
-Transactions are isolatable components of extrinsic data used in blocks to describe specific communications from outside of the state-transition system. Typically they come from either the external world (in which case they will contain a signature to help authenticate their origin and appear in the block as `SignedTransaction`s) or they will come with the tacit acceptance of the block's validator set (in which case they will appear in the block as a `Transaction` and will be executed as if coming from the System object).
+Transactions are isolatable components of extrinsic data used in blocks to describe specific communications from outside of the STS. Typically they come from either the external world (in which case they will contain a signature to help authenticate their origin and appear in the block as `SignedTransaction`s) or they will come with the tacit acceptance of the block's validator set (in which case they will appear in the block as a `Transaction` and will be executed as if coming from the System object).
 
 ```
 Transaction: [
@@ -115,7 +115,7 @@ SignedTransaction: [
 ]
 ```
 
-In order to describe the signature format, it is useful to define the `UnsignedTransaction` object which is a `Transaction` with a `nonce`, or index to force an order on transactions coming from the same origin as avoid replay attacks.
+In order to describe the signature format, it is useful to define the `UnsignedTransaction` object which is a `Transaction` with a `nonce`, or index to force an order on transactions coming from the same origin to avoid replay attacks.
 
 ```
 UnsignedTransaction: [
@@ -126,7 +126,7 @@ UnsignedTransaction: [
 
 - `destination` is the object index on which the function will be called.
 - `function_name` is the name of the function of the object that will be called.
-- `parameters` are the parameters to be passed into the function; this is a rich data segment and will be interpreted according to the function's prototype. It should contain exactly the number of the elements as the function's prototype; if any of the function's prototype elements are structured in nature, then the structure of this parameters should reflect that. A more specific mapping between RLP and Wasm ABI will be provided in due course.
+- `parameters` are the parameters to be passed into the function; this is a rich data segment and will be interpreted according to the function's prototype. It should contain exactly the number of the elements as the function's prototype; if any of the function's prototype elements are structured in nature, then the structure of these parameters should reflect that. A more specific mapping between RLP and Wasm ABI will be provided in due course.
 
 ## Header
 
@@ -181,13 +181,15 @@ CandidateReceipt: [
 ]
 ```
 
-`parachain_index` is the unique identifier for this parachain. `egress_queue_roots` is the array of roots of the egress queues. Many/most entries may be empty if the parachain has little outgoing communication with certain other chains. `balance_uploads` is the set of `AccountID` account identifiers and `U256` positive balance deltas that represent the balances that should be unlocked on the relay chain (since the DOTs have been made unavailable on the parachain itself).
+- `parachain_index` is the unique identifier for this parachain. 
+- `egress_queue_roots` is the array of roots of the egress queues. Many/most entries may be empty if the parachain has little outgoing communication with certain other chains. 
+- `balance_uploads` is the set of `AccountID` account identifiers and `U256` positive balance deltas that represent the balances that should be unlocked on the relay chain (since the DOTs have been made unavailable on the parachain itself).
 
 # Transaction routing
 
 Importantly, the relay-chain validators do almost nothing regarding transaction routing. All heavy-lifting in terms of tracking egress (outgoing) queues is done by collators.
 
-For each block of each parachain, there exists a set of outgoing messages to each other parachain. If no state-transition happened for the parachain, then this set will be empty.
+For each block of each parachain, there exists a set of outgoing messages to each other parachain. If no S-T happened for the parachain, then this set will be empty.
 
 For parachain `P` sending a message to parachain `Q`, at block number `B` we can say `chain[B].parachain[P].egress[Q]` represents this queue. If, for whatever reason, `Q` does not process this queue, then the items are not somehow forwarded or copied into `chain[B + 1].parachain[P].egress[Q]` rather this is a separate queue altogether, describing the output messages resulting from `P`'s block `B + 1`. In this case, when validating a candidate for `Q` after block `B`, the egress queues from `B` will need to be managed in the validation logic.
 
@@ -216,11 +218,11 @@ It is permissible for any of these `[ bytes, ... ]` arrays to be empty.
 
 ### Specifics
 
-Each notional egress queue for a given block `chain[B].parachain[P].egress[Q]` relates to a specific set of data stored in the state. Specific for the end-state `S` of block `B`, we index-key `chain[B].parachain[P].egress_queues[Q]` into a trie. For any given block, the roots of all unprocessed egress queues (at the end of the block's state transition) are stored in its state: `S.Parachains.chain_state(P).egress_queue_roots[Q]`.
+Each notional egress queue for a given block `chain[B].parachain[P].egress[Q]` relates to a specific set of data stored in the state. Specific for the end-state `S` of block `B`, we index-key `chain[B].parachain[P].egress_queues[Q]` into a trie. For any given block, the roots of all unprocessed egress queues (at the end of the block's S-T) are stored in its state: `S.Parachains.chain_state(P).egress_queue_roots[Q]`.
 
 As part of its operation, the candidate block validation function requires the unprocessed ingress queues (i.e. relevant other parachain's egress queues). These queues are provided by the collator as part of the candidate block, *but* are validated externally to the validation function "natively" by the validator. Technically these could be validated as part of the validation function, but it would mean duplication of code between all parachains and would inevitably be slower and require substantial additional data wrangling as the witness data concerning historical egress information were composed and passed. Requiring the validator node itself to pre-validate this information avoids this.
 
-The candidate specifies the new set of egress queue roots, and the Validation Function ensures that these are reflected by the state transition of the parachain.
+The candidate specifies the new set of egress queue roots, and the Validation Function ensures that these are reflected by the S-T of the parachain.
 
 The source and destination are parachain indices.
 
@@ -337,25 +339,28 @@ All USER transactions must burn a fee as soon as possible into their execution a
 
 ## Administration (2)
 
-The Administration object contains `execute_block` which handles the entire state-transition function. Some of the functions it provides are provided through its ephemeral storage (particularly `deposit_log`, `current_user` and `set_active_parachains`).
+The Administration object contains `execute_block` which handles the entire STF. Some of the functions it provides are provided through its ephemeral storage (particularly `deposit_log`, `current_user` and `set_active_parachains`).
 
 Regarding `execute_block`, rough pseudo-code is:
-  - for each transaction `tx` in `block.transactions`, `Nobody` calls `S[tx.destination][tx.function_name](tx.params...)`. If a transaction aborts, then the block is aborted and considered invalid.
+  - for each transaction `tx` in `block.transactions`, `Nobody` calls `S[tx.destination][tx.function_name](tx.params...)`, where state `S` is the end-state of the `block`. If a transaction aborts, then the block is aborted and considered invalid.
     - Transactions can include signed statements from external actors such as fishermen, but crucially can also contain unsigned statements that simply record an "accepted" truth (or piece of extrinsic data). If a transaction is unsigned but is included as part of a block, then its sender is System. Timestamp would be an example of this. When a validator signs a block as a relay-chain candidate they implicitly ratify each of the blocks statements as being valid truths.
-    - One set of statements that appear in the block are selected parachain candidates. In this case it is a simple message to `S.Parachains.update_heads`. This call ensures any DOT balances on the parachain required as fees for the egress-queue is burned.
+    - One set of statements that appear in the block are selected parachain candidates. In this case it is a simple message to `S.Parachains.update_heads`. This call ensures any DOT balances on the parachain required as fees for the egress-queue are burned.
 
 
 ## Parachains (5)
 
 ### Validating & Processing
 
-Relay-chain validation happens in three contexts. Firstly, when you are attempting to sync the chain; secondly when you are building a block and need to determine the validity of a candidate on a parachain that you are not assigned to; thirdly when you are attempting to validate a parachain candidate, perhaps as a fisherman, perhaps as a validator who is building a block, perhaps as a validator who is responding to a complaint.
+Relay-chain validation happens in three contexts: 
+1. When you are attempting to sync the chain
+2. When you are building a block and need to determine the validity of a candidate on a parachain that you are not assigned to
+3. When you are attempting to validate a parachain candidate, perhaps as a fisherman, perhaps as a validator who is building a block, perhaps as a validator who is responding to a complaint.
 
 For the first context, it is enough to simply execute all transactions in the block. Validation happens implicitly through the existence of the unsigned `update_heads` transaction that appear in a block signed by validators.
 
 The second context is much like the first, except that `update_heads` is run manually and availability of the source block is affirmed.
 
-In all contexts, it is not assumed that you have any chain history. All operations can be done purely through looking at the "current" (relative to the block to the validated) chain state.
+In all contexts, it is not assumed that you have any chain history. All operations can be done purely through looking at the "current" (relative to the block to be validated) chain state.
 
 For the latter context, the specific steps to validate a parachain candidate on state `S` are:
 
@@ -386,7 +391,7 @@ update_heads(
 
 	foreach source in receipts.keys():
 		with chain as S.Parachains.chain_state[source];
-		with reciept as receipts[source];
+		with receipt as receipts[source];
 		foreach dest in receipts.keys():
 			if routing_from[source].contains(dest):
 				chain.egress[dest].clear();
@@ -442,4 +447,13 @@ v := v_standard - 26 + chain_id * 2
 
 #### Q&A
 
-- *How are fee-charges expected to be kept in sync with chain balance totals?* There are three instances where fees are charged for user activities: Transacting directly with the Staking object, transacting directly with the Parachains object and issuing some parachain-based instruction (e.g. to upload a balance into the Parachains object or to send a message into another parachain). The first two are charged from the user's balance directly as (a very early) part of the execution of the transaction. The latter is charged directly to the parachain's balance. It is assumed that the parachain's state-transition function (STF) ensure that where necessary the user is adequately charged a fee from its parachain-local balance of DOTs; in the case of sending messages, this will appear as a necessary burn of DOT tokens for the parachain to issue an outgoing message into its egress queue. In the case of uploading DOTs, it will likely be a simple reduction in the amount of DOTs that appears in `upload_balances` compared to those burned on the parachain itself (which, were there no fees, would be equal).
+- *How are fee-charges expected to be kept in sync with chain balance totals?* There are three instances where fees are charged for user activities: Transacting directly with the Staking object, transacting directly with the Parachains object and issuing some parachain-based instruction (e.g. to upload a balance into the Parachains object or to send a message into another parachain). The first two are charged from the user's balance directly as (a very early) part of the execution of the transaction. The latter is charged directly to the parachain's balance. It is assumed that the parachain's STF ensures that where necessary the user is adequately charged a fee from its parachain-local balance of DOTs; in the case of sending messages, this will appear as a necessary burn of DOT tokens for the parachain to issue an outgoing message into its egress queue. In the case of uploading DOTs, it will likely be a simple reduction in the amount of DOTs that appears in `upload_balances` compared to those burned on the parachain itself (which, were there no fees, would be equal).
+
+#### Abbreviations
+
+- CSPRNG - Cryptographically Secure Pseudo-Random Number Generator
+- ECDSA - Elliptic Curve Digital Signature Algorithm
+- RLP - Recursive Length Prefix
+- S-T - State-Transition
+- STF - State-Transition Function
+- STS - State-Transition System
